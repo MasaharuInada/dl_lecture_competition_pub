@@ -1,7 +1,12 @@
+import sklearn
+import sktime
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from einops.layers.torch import Rearrange
+from tsai.basics import *
+from tsai.models.MINIROCKET_Pytorch import *
+from tsai.models.utils import *
 
 
 class BasicConvClassifier(nn.Module):
@@ -74,3 +79,38 @@ class ConvBlock(nn.Module):
         # X = F.glu(X, dim=-2)
 
         return self.dropout(X)
+
+
+class miniROCKETClassifier(nn.Module):
+    def __init__(
+        self,
+        num_classes: int,
+        seq_len: int,
+        in_channels: int,
+        num_kernels: int = 10,
+        kernel_size: int = 7,
+        p_drop: float = 0.1,
+    ) -> None:
+        super().__init__()
+
+        self.blocks = nn.Sequential(
+            ConvBlock(in_channels, num_kernels, kernel_size),
+            ConvBlock(num_kernels, num_kernels, kernel_size),
+        )
+
+        self.head = nn.Sequential(
+            nn.AdaptiveAvgPool1d(1),
+            Rearrange("b d 1 -> b d"),
+            nn.Linear(num_kernels, num_classes),
+        )
+
+    def forward(self, X: torch.Tensor) -> torch.Tensor:
+        """_summary_
+        Args:
+            X ( b, c, t ): _description_
+        Returns:
+            X ( b, num_classes ): _description_
+        """
+        X = self.blocks(X)
+
+        return self.head(X)

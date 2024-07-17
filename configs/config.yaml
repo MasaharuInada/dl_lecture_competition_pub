@@ -1,4 +1,4 @@
-batch_size: 128
+batch_size: 256
 epochs: 80
 lr: 0.001
 
@@ -10,4 +10,4 @@ use_wandb: False
 data_dir: data
 
 # Evaluation
-model_path: 
+model_path: outputs/2024-07-17/23-26-54/model_last.pt

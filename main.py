@@ -1,16 +1,21 @@
-import os, sys
+import os
+import sys
+
+import hydra
 import numpy as np
 import torch
 import torch.nn.functional as F
-from torchmetrics import Accuracy
-import hydra
+import wandb  # API key: 2efbdd2316576b45689ac6f5c6e957865ad0b1ba
 from omegaconf import DictConfig
-import wandb
 from termcolor import cprint
+from torchmetrics import Accuracy
 from tqdm import tqdm
+from tsai.models.MINIROCKET_Pytorch import *
+from tsai.models.RNN import *
+from tsai.models.TCN import *
 
 from src.datasets import ThingsMEGDataset
-from src.models import BasicConvClassifier
+from src.models import BasicConvClassifier, miniROCKETClassifier
 from src.utils import set_seed
 
 
@@ -39,9 +44,36 @@ def run(args: DictConfig):
     # ------------------
     #       Model
     # ------------------
-    model = BasicConvClassifier(
-        train_set.num_classes, train_set.seq_len, train_set.num_channels
+    # model = BasicConvClassifier(
+    #     train_set.num_classes, train_set.seq_len, train_set.num_channels
+    # ).to(args.device)
+
+    # model = MiniRocket(
+    #     c_in=train_set.num_channels,
+    #     seq_len=train_set.seq_len,
+    #     num_features=256,
+    #     max_dilations_per_kernel=32,
+    #     c_out=train_set.num_classes,
+    # ).to(args.device)
+    
+    model = TCN(
+        c_in=train_set.num_channels,
+        c_out=train_set.num_classes,
+        ks=7,
+        layers=[25] * 7,
+        conv_dropout=0.2,
+        fc_dropout=0.5,
     ).to(args.device)
+    
+    # model = LSTM(
+    #     c_in=train_set.num_channels,
+    #     c_out=train_set.num_classes,
+    #     hidden_size=512,
+    #     n_layers=2,
+    #     rnn_dropout=0.2,
+    #     fc_dropout=0.2,
+    #     bidirectional=True,
+    # ).to(args.device)
 
     # ------------------
     #     Optimizer
@@ -50,7 +82,7 @@ def run(args: DictConfig):
 
     # ------------------
     #   Start training
-    # ------------------  
+    # ------------------
     max_val_acc = 0
     accuracy = Accuracy(
         task="multiclass", num_classes=train_set.num_classes, top_k=10
@@ -103,9 +135,9 @@ def run(args: DictConfig):
     # ----------------------------------
     model.load_state_dict(torch.load(os.path.join(logdir, "model_best.pt"), map_location=args.device))
 
-    preds = [] 
+    preds = []
     model.eval()
-    for X, subject_idxs in tqdm(test_loader, desc="Validation"):        
+    for X, subject_idxs in tqdm(test_loader, desc="Validation"):
         preds.append(model(X.to(args.device)).detach().cpu())
         
     preds = torch.cat(preds, dim=0).numpy()
